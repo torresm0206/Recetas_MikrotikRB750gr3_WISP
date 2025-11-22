@@ -1,0 +1,43 @@
+Este archivo tiene como finalidad, respaldar los comandos necesarios para la configuración de un Mikrotik como Edge Router para la andministración de una WISP.
+La configuración/Topología es la siguiente:
+ISP <-> Mikrotik (RB750Gr3) <-> Rocket 5AC Lite -> CPEs en modo Bridge (Lite Beam M5 y Lite Beam AC Gen2) <-> Routers Inalámbricos en modo Router (WR840N)
+
+Autor: José Manuel Torres Rivera
+Version: 1.2
+Notas: Despúes de cambiar las reglas del Firewall, se cambión la regla de NAT, a la línea que se tiene en este documento, para que solo se haga NAT en los clientes y no hacer NAT innecesario con la red de MGMT.
+
+
+1) Cración del Bridge y asignación de Puertos:
+
+/interface bridge add name=br-lan comment="LAN Interna"
+/interface bridge port add bridge=br-lan interface=ether2
+/interface bridge port add bridge=br-lan interface=ether3
+/interface bridge port add bridge=br-lan interface=ether4
+/interface bridge port add bridge=br-lan interface=ether5
+
+2)Direcciones IP, WAN por DHCP y DNS:
+
+/ip address add address=192.168.1.1/24 interface=br-lan comment="MGMT"
+/ip address add address=10.10.0.1/24 interface=br-lan comment="CLIENTES"
+/ip dhcp-client add interface=ether1 use-peer-dns=no add-default-route=yes disabled=no
+/ip dns set allow-remote-requests=yes servers=1.1.1.1,8.8.8.8
+
+3)DHCP para Clientes:
+
+/ip pool add name=pool-clientes ranges=10.10.0.50-10.10.0.254
+/ip dhcp-server add name=dhcp-clientes interface=br-lan address-pool=pool-clientes lease-time=1d authoritative=after-2sec-delay
+/ip dhcp-server network add address=10.10.0.0/24 gateway=10.10.0.1 dns-server=10.10.0.1,1.1.1.1 comment="Red Clientes"
+
+4) NAT hacia ISP:
+/ip firewall nat add chain=srcnat action=masquerade src-address=10.10.0.0/24 out-interface=ether1 comment="NAT: Clientes hacia Internet"
+
+5) Firewall base y aislamiento:
+/ip firewall filter
+add chain=input action=accept connection-state=established,related comment="INPUT: EST/REL"
+add chain=input action=drop connection-state=invalid comment="INPUT: invalid"
+add chain=input action=accept src-address=192.168.1.0/24 comment="INPUT: gestion Mikrotik"
+add chain=input action=accept src-address=10.10.0.0/24 protocol=udp dst-port=53,67,68 comment="INPUT: DNS/DHCP desde clientes"
+add chain=input action=drop src-address=10.10.0.0/24 comment="INPUT: bloquear gestion desde clientes"
+add chain=forward action=accept connection-state=established,related comment="FWD: EST/REL"
+add chain=forward action=drop connection-state=invalid comment="FWD: invalid"
+add chain=forward action=drop src-address=10.10.0.0/24 dst-address=192.168.1.0/24 comment="FWD: clientes aislados de gestion"
