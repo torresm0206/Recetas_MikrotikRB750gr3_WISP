@@ -3,8 +3,10 @@ La configuración/Topología es la siguiente:
 ISP <-> Mikrotik (RB750Gr3) <-> Rocket 5AC Lite -> CPEs en modo Bridge (Lite Beam M5 y Lite Beam AC Gen2) <-> Routers Inalámbricos en modo Router (WR840N)
 
 Autor: José Manuel Torres Rivera
-Version: 1.2
-Notas: Despúes de cambiar las reglas del Firewall, se cambión la regla de NAT, a la línea que se tiene en este documento, para que solo se haga NAT en los clientes y no hacer NAT innecesario con la red de MGMT.
+Version: 1.0
+Notas: 
+1) NAT actualizado para solo los Clientes
+2) Firewall Actualizado para respetar que los Clientes no tengan conflictos con reonación de IPs
 
 
 1) Cración del Bridge y asignación de Puertos:
@@ -41,3 +43,13 @@ add chain=input action=drop src-address=10.10.0.0/24 comment="INPUT: bloquear ge
 add chain=forward action=accept connection-state=established,related comment="FWD: EST/REL"
 add chain=forward action=drop connection-state=invalid comment="FWD: invalid"
 add chain=forward action=drop src-address=10.10.0.0/24 dst-address=192.168.1.0/24 comment="FWD: clientes aislados de gestion"
+
+6) Colas PCQ:
+#Crear tipos de cola
+/queue type
+add name=pcq-down-clientes kind=pcq pcq-classifier=dst-address pcq-rate=0 pcq-limit=50 pcq-total-limit=200
+add name=pcq-up-clientes kind=pcq pcq-classifier=src-address pcq-rate=0 pcq-limit=50 pcq-total-limit=200
+
+/queue simple
+add name="PCQ-clientes" target=10.10.0.0/24 max-limit=10M/80M queue=pcq-up-clientes/pcq-down-clientes comment="PCQ: reparto justo para clientes"
+
