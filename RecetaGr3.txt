@@ -9,31 +9,48 @@ Notas:
 2) Firewall Actualizado para respetar que los Clientes no tengan conflictos con reonación de IPs
 
 
-1) Cración del Bridge y asignación de Puertos:
-
-/interface bridge add name=br-lan comment="LAN Interna"
+1) Cración del Bridge y asignación de Puertos:/interface bridge add name=br-lan comment="LAN Interna"
 /interface bridge port add bridge=br-lan interface=ether2
 /interface bridge port add bridge=br-lan interface=ether3
 /interface bridge port add bridge=br-lan interface=ether4
 /interface bridge port add bridge=br-lan interface=ether5
 
-2)Direcciones IP, WAN por DHCP y DNS:
 
+2)Direcciones IP, WAN por DHCP y DNS:
+#Para HTT1,2,3:
 /ip address add address=192.168.1.1/24 interface=br-lan comment="MGMT"
 /ip address add address=10.10.0.1/24 interface=br-lan comment="CLIENTES"
 /ip dhcp-client add interface=ether1 use-peer-dns=no add-default-route=yes disabled=no
 /ip dns set allow-remote-requests=yes servers=1.1.1.1,8.8.8.8
 
-3)DHCP para Clientes:
+#Para HTT4:
+/ip address add address=192.168.100.1/24 interface=br-lan comment="MGMT"
+/ip address add address=192.168.10.1/24 interface=br-lan comment="CLIENTES"
+/ip dhcp-client add interface=ether1 use-peer-dns=no add-default-route=yes disabled=no
+/ip dns set allow-remote-requests=yes servers=1.1.1.1,8.8.8.8
 
+
+3)DHCP para Clientes:
+#Para HTT1,2,3:
 /ip pool add name=pool-clientes ranges=10.10.0.50-10.10.0.254
-/ip dhcp-server add name=dhcp-clientes interface=br-lan address-pool=pool-clientes lease-time=1d authoritative=after-2sec-delay
+/ip dhcp-server add name=dhcp-clientes interface=br-lan address-pool=pool-clientes lease-time=1h authoritative=after-2sec-delay
 /ip dhcp-server network add address=10.10.0.0/24 gateway=10.10.0.1 dns-server=10.10.0.1,1.1.1.1 comment="Red Clientes"
 
+#Para HTT4:
+/ip pool add name=pool-clientes ranges=192.168.10.50-192.168.10.254
+/ip dhcp-server add name=dhcp-clientes interface=br-lan address-pool=pool-clientes lease-time=1h authoritative=after-2sec-delay
+/ip dhcp-server network add address=192.168.10.0/24 gateway=192.168.10.1 dns-server=192.168.10.1,1.1.1.1 comment="Red Clientes"
+
+
 4) NAT hacia ISP:
+#Para HTT1,2,3:
 /ip firewall nat add chain=srcnat action=masquerade src-address=10.10.0.0/24 out-interface=ether1 comment="NAT: Clientes hacia Internet"
 
+#Para HTT4:
+/ip firewall nat add chain=srcnat action=masquerade src-address=192.168.10.0/24 out-interface=ether1 comment="NAT: Clientes hacia Internet"
+
 5) Firewall base y aislamiento:
+#Para HTT1,2,3:
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="INPUT: EST/REL"
 add chain=input action=drop connection-state=invalid comment="INPUT: invalid"
@@ -44,12 +61,29 @@ add chain=forward action=accept connection-state=established,related comment="FW
 add chain=forward action=drop connection-state=invalid comment="FWD: invalid"
 add chain=forward action=drop src-address=10.10.0.0/24 dst-address=192.168.1.0/24 comment="FWD: clientes aislados de gestion"
 
+#Para HTT4:
+/ip firewall filter
+add chain=input action=accept connection-state=established,related comment="INPUT: EST/REL"
+add chain=input action=drop connection-state=invalid comment="INPUT: invalid"
+add chain=input action=accept src-address=192.168.100.0/24 comment="INPUT: gestion Mikrotik"
+add chain=input action=accept src-address=192.168.10.0/24 protocol=udp dst-port=53,67,68 comment="INPUT: DNS/DHCP desde clientes"
+add chain=input action=drop src-address=192.168.10.0/24 comment="INPUT: bloquear gestion desde clientes"
+add chain=forward action=accept connection-state=established,related comment="FWD: EST/REL"
+add chain=forward action=drop connection-state=invalid comment="FWD: invalid"
+add chain=forward action=drop src-address=192.168.10.0/24 dst-address=192.168.100.0/24 comment="FWD: clientes aislados de gestion"
+
+
 6) Colas PCQ:
 #Crear tipos de cola
 /queue type
 add name=pcq-down-clientes kind=pcq pcq-classifier=dst-address pcq-rate=0 pcq-limit=50 pcq-total-limit=200
 add name=pcq-up-clientes kind=pcq pcq-classifier=src-address pcq-rate=0 pcq-limit=50 pcq-total-limit=200
 
+#Para HTT1,2,3:
 /queue simple
-add name="PCQ-clientes" target=10.10.0.0/24 max-limit=10M/80M queue=pcq-up-clientes/pcq-down-clientes comment="PCQ: reparto justo para clientes"
+add name="PCQ-clientes" target=10.10.0.0/24 max-limit=10M/90M queue=pcq-up-clientes/pcq-down-clientes comment="PCQ: reparto justo para clientes"
+
+#Para  HTT4:
+/queue simple
+add name="PCQ-clientes" target=192.168.10.0/24 max-limit=10M/90M queue=pcq-up-clientes/pcq-down-clientes comment="PCQ: reparto justo para clientes"
 
