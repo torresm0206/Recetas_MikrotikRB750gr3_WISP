@@ -9,7 +9,8 @@ Notas:
 2) Firewall Actualizado para respetar que los Clientes no tengan conflictos con reonación de IPs
 
 
-1) Cración del Bridge y asignación de Puertos:/interface bridge add name=br-lan comment="LAN Interna"
+1) Cración del Bridge y asignación de Puertos:
+/interface bridge add name=br-lan comment="LAN Interna"
 /interface bridge port add bridge=br-lan interface=ether2
 /interface bridge port add bridge=br-lan interface=ether3
 /interface bridge port add bridge=br-lan interface=ether4
